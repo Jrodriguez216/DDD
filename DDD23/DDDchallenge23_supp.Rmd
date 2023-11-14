@@ -1,0 +1,325 @@
+---
+title: "Data Design Difference Challenge 2023"
+author: "Jordan Rodriguez"
+date: "2023-11-11"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(tidyr)
+library(tidyverse)
+library(corrplot)
+```
+
+## FOOD. What Works? What Doesn't?
+
+#### There are many aspects of our everyday lives that are influenced by food, as this year's Data Design Challenge prompt describes. When I read this year's prompt, I immediately gravitated towards the idea of exploring food waste & sustainability through the lens of data analysis. As an avid gardener, certified master composter, and environmental scientist by training, I felt up for this task! Now, I am a second-year biology PhD student in the machine learning/population genetics Kern-Ralph Co-Lab, interested in computational methods and tools development, and I enjoy data analysis and visualization. To this end, I wanted to create something that gave viewers a reason to view! So, I decided on a bandersnatch-style "choose-your-adventure" poster, challenging viewers on their knowledge of food waste on campus, hopefully motivating change in their personal lives as they navigate through my interactive infographic. 
+
+#### I also believe in **open-source science** so I decided to write this document as a source of supplemental material to my competition submission. In this document, you will discover how each figure was made, and see where all of the data comes from. I made this document using [Rmarkdown](https://rmarkdown.rstudio.com/)
+
+---
+
+*make it to the end of this document for the answer to this joke!*
+
+*What did the composting rapper say?*
+
+---
+
+## R version & os info
+
+```{r version, echo=TRUE}
+version
+```
+
+## Data used in this exercise
+
+The cleaned data used for this project can be found in the same repository as this document, and the raw data can be found at this **[link](https://sustainability.uoregon.edu/about.html#Data)** and this **[link](https://uoregon-my.sharepoint.com/personal/infographics_uoregon_edu/_layouts/15/onedrive.aspx?ga=1&id=%2Fpersonal%2Finfographics%5Fuoregon%5Fedu%2FDocuments%2FEvents%2FGIS%20Day%2FGIS%20Day%202023%2FDDD%20Challenge%20Data%2FSupplied%20Data%20Options%2FSustainability%2FWaste%20to%20Energy%2FLane%20County%20Food%20Waste%20to%20Energy%20Feasibility%20Study%2Epdf&parent=%2Fpersonal%2Finfographics%5Fuoregon%5Fedu%2FDocuments%2FEvents%2FGIS%20Day%2FGIS%20Day%202023%2FDDD%20Challenge%20Data%2FSupplied%20Data%20Options%2FSustainability%2FWaste%20to%20Energy)**
+
+My approach was to download the excel files available on the UO website, subset the data to create the .tsv (I used BBedit on Mac to do this) files and read them into Rstudio. I used the Lane County Waste Data document as a reference for calculating Food Waste per student and as a comparison from 2007 estimates. 
+
+## Reading in Waste Data
+
+```{r wastedata, echo=TRUE, warning=FALSE}
+# Reading in the waste data
+waste <- read.csv("uowastedata.tsv", sep='\t', header = FALSE)
+waste <- as.data.frame(t(waste))
+names(waste) <- as.matrix(waste[1, ])
+waste <- waste[-1, ]
+waste[] <- lapply(waste, function(x) type.convert(as.character(x)))
+waste
+```
+
+## The following code blocks outline the different statistical analysis I did with the data used. Explanations of the results are described below each figure. 
+
+### University of Oregon Landfill & Recovered Waste from 1993 to 2021 (Using ggplot2)
+
+```{r plotwaste, echo=TRUE}
+plot1 <- ggplot(waste, aes(x = Year)) +
+  geom_line(aes(y = All_other, color = "Other"), linewidth=1) +
+  geom_line(aes(y = Paper, color = "Paper"), linewidth=1) +
+  geom_line(aes(y = Yard_Debris, color = "Yard Debris"), linewidth=1) +
+  geom_line(aes(y = Glass_Metal_Plastic, color = "Glass/Metal/Plastic"), linewidth=1) +
+  geom_line(aes(y = Food_materials, color = "Food Waste"), linewidth=2) +
+  geom_line(aes(y = Landfill, color = "Landfill"), linewidth=1) +
+  labs(title = "UO Landfill & Recovered Waste 1993-2021",
+       x = "Fiscal Year (July 1st of previous year to June 30th of current year)",
+       y = "Weight of Waste in Tons") +
+  theme_minimal() +
+  scale_color_manual(values = c("Other" = "#d55e00", 
+                                "Paper" = "#cc79a7", 
+                                "Yard Debris" = "#0072b2",
+                                "Glass/Metal/Plastic" = "#f0e442", 
+                                "Food Waste" = "#009e73", 
+                                "Landfill" = "black")) +
+  scale_x_continuous(breaks = unique(waste$Year)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = c(0, 1),
+        legend.justification = c(0, 1)) +
+  labs(color = "Waste Types")
+
+plot1
+
+#save plot
+#ggsave("LvR.png", plot1, width = 8, height = 6, dpi = 300, bg = "transparent")
+
+```
+The color-blind friendly color palette I used for this figure can be found [here](https://www.color-hex.com/color-palette/49436)
+
+The above plot shows University of Oregon Food Waste that has recovered from Landfill since the Fiscal Year of 1993. We can see that COVID 19 pandemic in 2019-2020 may be the reason that recovered food waste decreased to the lowest levels since 2009. 
+
+### Landfill Percentage Over the Years 
+
+```{r plot2, echo=TRUE}
+waste$Landfill_Percentage <- (waste$Landfill / rowSums(waste[, c("All_other", 
+                                                                 "Paper", 
+                                                                 "Yard_Debris", 
+                                                                 "Glass_Metal_Plastic", 
+                                                                 "Food_materials", 
+                                                                 "Landfill")])) * 100
+
+plot2 <- ggplot(waste, aes(x = Year)) +
+  geom_line(aes(y = Landfill_Percentage, color = "Landfill Percentage"), linewidth = 1) +
+  labs(title = "Landfill Percentage Over Years",
+       x = "Fiscal Year (July 1st of previous year to June 30th of current year)",
+       y = "Landfill Percentage") +
+  theme_minimal() +
+  scale_color_manual(values = c("Landfill Percentage" = "black")) +
+  scale_x_continuous(breaks = unique(waste$Year)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(hjust = 0.5, face = "bold"), 
+        legend.position = c(1, 1),
+        legend.justification = c(1, 1)) +
+  labs(color = "Waste Type")
+plot2
+
+#ggsave("LPoY.png", plot2, width = 8, height = 6, dpi = 300, bg = "transparent")
+
+
+```
+
+While landfill waste at the University of Oregon has **been on the rise** since 2019, again likely due to the pandemic, the linear regression performed below provides clarity on the statistical significance of the overall trend since 1993. As we can see, the linear regression model indicates that there is a significant relationship between 'Year' and 'Landfill_Percentage.' The estimated slope is negative, suggesting **a decrease in 'Landfill_Percentage' over time**. The model has a high R-squared value, indicating a good fit to the data. A summary of the linear model is below.
+
+```{r linmod1, echo=TRUE}
+# in a simple linear regression
+lm_result <- lm(Landfill_Percentage ~ Year, data = waste)
+summary(lm_result)
+```
+
+## Reclaimed Food Waste Percentage Over the Years
+
+```{r plot3, echo=TRUE}
+waste$Food_Percentage <- waste$Food_materials / rowSums(waste[, c("All_other", 
+                                                                  "Paper", 
+                                                                  "Yard_Debris", 
+                                                                  "Glass_Metal_Plastic", 
+                                                                  "Food_materials", 
+                                                                  "Landfill")]) * 100
+
+plot3 <- ggplot(waste, aes(x = Year)) +
+  geom_line(aes(y = Food_Percentage, color = "Reclaimed Food Waste Percentage"), linewidth = 1) +
+  labs(title = "Reclaimed Food Waste Percentage Over Years",
+       x = "Fiscal Year (July 1st of previous year to June 30th of current year)",
+       y = "Food Waste Percentage") +
+  theme_minimal() +
+  scale_color_manual(values = c("Reclaimed Food Waste Percentage" = "darkgreen")) +
+  scale_x_continuous(breaks = unique(waste$Year)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(hjust = 0.5, face = "bold"), 
+        legend.position = c(0, 1),
+        legend.justification = c(0, 1)) +
+  labs(color = "Waste Type")
+plot3
+
+#save plot
+#ggsave("RFWPoY.png", plot3, width = 8, height = 6, dpi = 300, bg = "transparent")
+```
+
+Here we see that reclaimed food waste has been **decreasing since 2017**, but the linear regression model performed below clarifies the overall trend of reclaimed food waste which has been on the rise! let's hope it stays that way. The linear model is described below.  
+
+```{r linmod2, echo=TRUE}
+# in a simple linear regression
+lm_result1 <- lm(Food_Percentage ~ Year, data = waste)
+summary(lm_result1)
+```
+
+## Scatter Plot: Food and Landfill Percentages vs. Year
+
+```{r plot4, echo=TRUE}
+plot4 <- ggplot(waste, aes(x = Year)) +
+  geom_point(aes(y = Food_Percentage, color = "Food Waste"), size = 2) +
+  geom_point(aes(y = Landfill_Percentage, color = "Landfill Waste"), size = 2) +
+  geom_smooth(aes(y = Food_Percentage, color = "Food Waste"), method = "lm", se = FALSE) +
+  geom_smooth(aes(y = Landfill_Percentage, color = "Landfill Waste"), method = "lm", se = FALSE) +
+  labs(title = "Scatter Plot: Food and Landfill Percentages vs. Year",
+       x = "Year",
+       y = "Percentage") +
+  scale_color_manual(values = c("darkgreen", "brown"),
+                     name = "Waste Type",
+                     labels = c("Food Waste", "Landfill Waste")) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "top",  
+    legend.justification = c(1, 0),
+    legend.box.just = "right"
+  )
+
+plot4
+
+#ggsave("FLPY.png", plot4, width = 8, height = 6, dpi = 300, bg = "transparent")
+```
+
+In the above plot, we see that as landfill waste decreases, reclaimed food waste increases, indicating that when food waste is not reclaimed, it is included in the regular waste, contributing to the harmful methane gas that is released when food ends up in the landfill. But let's look at this another way.
+
+## Stacked Area Chart of Waste Types Over Years
+
+```{r plot5, echo=TRUE}
+waste <- waste[, -c(ncol(waste) - 1, ncol(waste))]
+waste_long <- gather(waste, key = "WasteType", value = "Weight", -Year)
+
+# Create the stacked area chart
+plot5 <- ggplot(waste_long, aes(x = Year, y = Weight, fill = WasteType)) +
+  geom_area() +
+  labs(title = "Stacked Area Chart of Waste Types Over Years",
+       x = "Fiscal Year",
+       y = "Weight of Waste in Tons") +
+  theme_minimal()
+plot5 <- plot5 + theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+plot5
+
+#ggsave("WToY.png", plot5, width = 8, height = 6, dpi = 300, bg = "transparent")
+
+```
+
+The above plot gives us a better idea of the total waste produced by the University of Oregon since 1993. we can see clearly that the majority of the waste produced by the UO has been landfill data. As we can see, it looks as though the increase in reclaimed food material is correlated with a decrease in landfill waste, which we will explore later. 
+
+
+## Correlation Matrix Between Waste Types 
+
+```{r plot6, echo=TRUE}
+correlation_matrix <- cor(waste[, c("All_other", 
+                                    "Paper", 
+                                    "Yard_Debris", 
+                                    "Glass_Metal_Plastic", 
+                                    "Food_materials", 
+                                    "Landfill")])
+
+corr_plot <- corrplot(correlation_matrix, method = "number", addCoef.col = "black")
+
+png("correlation_matrix.png", width = 800, height = 600, bg = "transparent")
+corrplot(correlation_matrix, method = "number", addCoef.col = "black")
+dev.off()
+```
+
+Here, we can clearly see the negative correlation between food waste and landfill waste. Now we can definitively say that as landfill waste increases, reclaimed food waste decreases, meaning that when food waste is not reclaimed, it is likely ending up in the landfill. 
+
+## Heatmap of Waste Types Across Years 
+
+```{r plot7, echo=TRUE}
+ggplot(waste_long, aes(x = factor(Year), y = WasteType, fill = Weight)) +
+  geom_tile() +
+  labs(title = "Heatmap of Waste Types Across Years",
+       x = "Fiscal Year",
+       y = "Waste Type",
+       fill = "Weight of Waste in Tons") +
+  theme_minimal()
+```
+
+We can see that Landfill waste has far surpassed that of other types of waste in terms of weight. Interestingly, we can see that in the years that food waste was higher in weight, landfill is lower! I also noted that reclaimed paper has been on the decline as systems have transitioned to online. 
+
+## Correlation test of Percentage of Food Waste Vs. Percentage of Landfill Waste
+
+```{r corrtest, echo=TRUE}
+waste$Food_Percentage <- waste$Food_materials / rowSums(waste[, c("All_other", 
+                                                                  "Paper", 
+                                                                  "Yard_Debris", 
+                                                                  "Glass_Metal_Plastic", 
+                                                                  "Food_materials", 
+                                                                  "Landfill")]) * 100
+
+waste$Landfill_Percentage <- (waste$Landfill / rowSums(waste[, c("All_other", 
+                                                                 "Paper", 
+                                                                 "Yard_Debris", 
+                                                                 "Glass_Metal_Plastic", 
+                                                                 "Food_materials", 
+                                                                 "Landfill")])) * 100
+
+correlation <- cor(waste$Landfill_Percentage, waste$Food_Percentage)
+
+# Print the correlation coefficient
+cat("Correlation coefficient:", correlation, "\n")
+
+# Test for significance (p-value)
+cor_test_result <- cor.test(waste$Landfill_Percentage, waste$Food_Percentage)
+print(cor_test_result)
+```
+
+The negative correlation that we see above serves as a supplemental analysis to the correlation matrix that we saw in the above plot.
+
+## Linear model of Food Percentage and Landfill Percentage
+
+```{r plot8, echo=TRUE}
+model <- lm(Food_Percentage ~ Landfill_Percentage, data = waste)
+
+# Print the summary of the regression model
+summary(model)
+```
+
+The above linear model is another way to conceptualize how food percentage is related to landfill percentage. 
+
+Below, I found the current number of students on the [UO facts page](https://admissions.uoregon.edu/uo-facts) and I used the equation on page 26 in the [Lane County Food Waste to Energy Feasibility Study](https://uoregon-my.sharepoint.com/personal/infographics_uoregon_edu/_layouts/15/onedrive.aspx?ga=1&id=%2Fpersonal%2Finfographics%5Fuoregon%5Fedu%2FDocuments%2FEvents%2FGIS%20Day%2FGIS%20Day%202023%2FDDD%20Challenge%20Data%2FSupplied%20Data%20Options%2FSustainability%2FWaste%20to%20Energy%2FLane%20County%20Food%20Waste%20to%20Energy%20Feasibility%20Study%2Epdf&parent=%2Fpersonal%2Finfographics%5Fuoregon%5Fedu%2FDocuments%2FEvents%2FGIS%20Day%2FGIS%20Day%202023%2FDDD%20Challenge%20Data%2FSupplied%20Data%20Options%2FSustainability%2FWaste%20to%20Energy) to calculate food waste for this year at UO. In that document, authors source the Massachusetts Department of Environmental Protection (2002).
+
+```{r other, include=TRUE}
+stustat <- (23202)
+# Equation provided in the document:
+# 0.35lbs/meal * N students * 405 meals/student/yr 
+
+# Food waste generation for this year 
+
+fw <- stustat * 405 *.35
+
+# fw is in lbs so /2000 to convert to tons 
+
+fwt <- fw/2000
+
+# per student waste in pounds 
+
+ps <- fw/stustat
+
+```
+
+
+---
+
+*Ready for the answer to the joke?*
+
+*Break it down now y'all!*
+
+Thanks for viewing!
+
+**Jordan Rodriguez**
+
+contact: jrodrig8@uoregon.edu
